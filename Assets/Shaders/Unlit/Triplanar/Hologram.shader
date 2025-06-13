@@ -2,20 +2,32 @@ Shader "Custom-Shaders/HologramShader"
 {
     Properties
     {
-        _MainTex ("Texture", 2D) = "white" {}
-        _Tiling ("Tiling", Float) = 1
+        [Header(Main Textures)] 
+        _MainTex ("Texture for showing scan lines", 2D) = "white" {}
         _OcclusionMap("Occlusion", 2D) = "white" {}
-        
-        _AnimateXY("animation vector", Vector) = (0,0,0,0)
+        /*Main Textures*/
 
-        _FresnelIntensity("intensity of fresnel", Range(0,10)) = 0.8
-        _FresnelRamp("fresnel ramp", Range(0,20)) = 0.4
-        _FresnelColor("color of fresnel effect", Color) = (1,1,1,1)      
-        _InvFresnelIntensity("inverse intensity of fresnel", Range(0,10)) = 4
-        _InvFresnelRamp("inverse fresnel ramp", Range(0,20)) = 2.5
+        [Header(Other Parameters)] 
+        _Tiling ("Tiling amount for UV's", Float) = 1
+        _AnimateXY("animation vector", Vector) = (0,0,0,0)
+        /*Other Parameters*/
+
+        [Header(Fresnel Effect outer hologram effect)]    
+        _FresnelIntensity("intensity of fresnel", Range(0,10)) = 1
+        _FresnelRamp("fresnel ramp", Range(0,20)) = 1
+        _FresnelColor("color of fresnel effect", Color) = (1,1,1,1)  
+        /*Fresnel Effect */
+
+        [Header(Fresnel Effect inner hologram effect)]   
+        _InvFresnelIntensity("inverse intensity of fresnel", Range(0,10)) = 1
+        _InvFresnelRamp("inverse fresnel ramp", Range(0,20)) = 1
         _InvFresnelColor("inverse color of fresnel effect", Color) = (1,1,1,1) 
-        _DistortionIntensity("inverse intensity of distortion", Range(0,10)) = 2.59
+        /*Inverse Fresnel Effect */
+
+        [Header(Distortion Texture)] 
         _DistortionTex("distortion texture", 2D) = "white" {}
+        _DistortionIntensity("intensity of distortion", Range(0,10)) = 1
+        /*Distortion Effect That plays over all the object, works well with a noise texture*/
     }
     SubShader
     {
@@ -39,34 +51,30 @@ Shader "Custom-Shaders/HologramShader"
             struct v2f
             {
                 half3 objNormal : TEXCOORD0;
-                float3 coords : TEXCOORD1;
+                float3 coords : TEXCOORD1; // the coordinates of the current texture
                 float2 uv : TEXCOORD2;
                 float3 viewDir : TEXCOORD3;
                 float4 pos : SV_POSITION;
             };
 
-            float _Tiling;
+            
 
             sampler2D _MainTex, _DistortionTex;
             sampler2D _OcclusionMap;
-
             float4 _FresnelColor, _InvFresnelColor, _MainTex_ST, _AnimateXY;
-            float _FresnelIntensity, _FresnelRamp, _InvFresnelIntensity, _InvFresnelRamp, _DistortionIntensity;
+            float _FresnelIntensity, _FresnelRamp, _InvFresnelIntensity, _InvFresnelRamp, _DistortionIntensity, _Tiling;
+
+
 
             v2f vert (appdata v, float4 pos : POSITION, float3 normal : NORMAL, float2 uv : TEXCOORD0)
             {
                 v2f o;
-
-                o.pos = UnityObjectToClipPos(v.vertex);
-                
-
                 o.pos = UnityObjectToClipPos(pos);
-                o.coords = pos.xyz * _Tiling;
-                o.objNormal = normal;
-                o.uv = uv * _Tiling;
-                o.viewDir = normalize(WorldSpaceViewDir(v.vertex));
+                o.coords = pos.xyz * _Tiling; //used to tile the uvs to a certain scale, allows for more uv's or less'
+                o.objNormal = normal; // setting the objNormal texcoords to the objects normal map
+                o.viewDir = normalize(WorldSpaceViewDir(v.vertex)); // this is normalizing the current viewdirection and putting it into the texcoords of viewDir
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                o.uv = _AnimateXY.xy * float2(_Time.y,_Time.y);
+                o.uv = _AnimateXY.xy * float2(_Time.y,_Time.y); // animated the min texture across the xy axis of the uv
                 return o;
             }
 
@@ -74,28 +82,28 @@ Shader "Custom-Shaders/HologramShader"
             
             fixed4 frag (v2f i) : SV_Target
             {
-                float2 uvs = i.uv;
+                float2 uvs = i.uv; // just getting the final uvs from v2f
 
-                float distort = tex2D(_DistortionTex, i.uv * _Time.yy);
-                float3 finalNormal = i.objNormal;
+                float distort = tex2D(_DistortionTex, i.uv * _Time.yy); // moving the distiortion texture across the uv 
 
+                /*START - Fresnel Effect code - outer hologram effect*/
                 float fresnelAmount = 1 - max(0,dot(i.objNormal, i.viewDir));
                 fresnelAmount *= distort * _DistortionIntensity;
                 fresnelAmount = pow(fresnelAmount, _FresnelRamp) * _FresnelIntensity;
                 float3 fresnelColor = fresnelAmount * _FresnelColor;
-                
+                /*END - Fresnel Effect code - outer hologram effect*/
 
+                /*START - Fresnel Effect code - inner hologram effect*/
                 float invfresnelAmount = max(0,dot(i.objNormal, i.viewDir));
-                fresnelAmount *= distort * _DistortionIntensity;
+                invfresnelAmount *= distort * _DistortionIntensity;
                 invfresnelAmount = pow(invfresnelAmount, _InvFresnelRamp) * _InvFresnelIntensity;
                 float3 invfresnelColor = invfresnelAmount * _InvFresnelColor;
+                /*END - Fresnel Effect code - inner hologram effect*/
 
-                float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount) + distort;
+                float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount) + distort; // lerping between the two effects and applying the distortion over the end result
                 
 
-                
-
-
+                /*START - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
                 // use absolute value of normal as texture weights
                 half3 blend = abs(i.objNormal);
                 // make sure the weights sum up to 1 (divide by sum of x+y+z)
@@ -108,10 +116,9 @@ Shader "Custom-Shaders/HologramShader"
                 fixed4 c = cx * blend.x + cy * blend.y + cz * blend.z;
                 // modulate by regular occlusion map
                 c *= tex2D(_OcclusionMap, i.uv);
+                /*START - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
 
-                
-
-                return fixed4(c + fresnelColor + invfresnelColor,1);
+                return fixed4(c * finalColor,1); // retuns the 
             }
             ENDHLSL
         }
