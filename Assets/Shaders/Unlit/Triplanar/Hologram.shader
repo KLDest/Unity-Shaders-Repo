@@ -88,19 +88,17 @@ Shader "Custom-Shaders/HologramShader"
 
                 /*START - Fresnel Effect code - outer hologram effect*/
                 float fresnelAmount = 1 - max(0,dot(i.objNormal, i.viewDir));
-                fresnelAmount *= distort * _DistortionIntensity;
                 fresnelAmount = pow(fresnelAmount, _FresnelRamp) * _FresnelIntensity;
                 float3 fresnelColor = fresnelAmount * _FresnelColor;
                 /*END - Fresnel Effect code - outer hologram effect*/
 
                 /*START - Fresnel Effect code - inner hologram effect*/
                 float invfresnelAmount = max(0,dot(i.objNormal, i.viewDir));
-                invfresnelAmount *= distort * _DistortionIntensity;
                 invfresnelAmount = pow(invfresnelAmount, _InvFresnelRamp) * _InvFresnelIntensity;
                 float3 invfresnelColor = invfresnelAmount * _InvFresnelColor;
                 /*END - Fresnel Effect code - inner hologram effect*/
 
-                float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount) + distort; // lerping between the two effects and applying the distortion over the end result
+                //float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount) + distort; // lerping between the two effects and applying the distortion over the end result
                 
 
                 /*START - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
@@ -116,9 +114,9 @@ Shader "Custom-Shaders/HologramShader"
                 fixed4 c = cx * blend.x + cy * blend.y + cz * blend.z;
                 // modulate by regular occlusion map
                 c *= tex2D(_OcclusionMap, i.uv);
-                /*START - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
+                /*END - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
 
-                return fixed4(c * finalColor,1); // retuns the 
+                return fixed4(c + fresnelColor + invfresnelColor,1) * (distort * _DistortionIntensity); // retuns the 
             }
             ENDHLSL
         }
