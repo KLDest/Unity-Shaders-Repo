@@ -1,4 +1,4 @@
-Shader "Custom-Shaders/HologramShader"
+Shader "Custom-Shaders/Hologram"
 {
     Properties
     {
@@ -24,14 +24,29 @@ Shader "Custom-Shaders/HologramShader"
         _InvFresnelColor("inverse color of fresnel effect", Color) = (1,1,1,1) 
         /*Inverse Fresnel Effect */
 
-        [Header(Distortion Texture)] 
+
+
+        /*[Header(Distortion Intensity)] NOT IN USE AT THE MOMENT
         _DistortionTex("distortion texture", 2D) = "white" {}
-        _DistortionIntensity("intensity of distortion", Range(0,10)) = 1
+        _DistortionIntensity("intensity of distortion", Range(0,10)) = 1 */      
         /*Distortion Effect That plays over all the object, works well with a noise texture*/
+
+
+
+        //This below is the alpha blend mathematics, it is displayed like this just so it can be accessed inside the unity editor
+        [Enum(UnityEngine.Rendering.BlendMode)]
+        _SrcFactor("Source", Float) = 5 // this is the source enum, it is a float because unity already has the sources in an array of integers, same with the destination below
+
+        [Enum(UnityEngine.Rendering.BlendMode)]
+        _DstFactor("Destination", Float) = 10 // this is the destination enum, 
+
+        [Enum(UnityEngine.Rendering.BlendOp)]
+        _Opp("Operation", Float) = 0 // this is the operation enum, i.e how the source and destination and compared to eachother
     }
     SubShader
     {
-        Blend SrcAlpha One
+        Blend [_SrcFactor] [_DstFactor]
+        BlendOp [_Opp]
         Pass
         {
             
@@ -85,6 +100,7 @@ Shader "Custom-Shaders/HologramShader"
                 float2 uvs = i.uv; // just getting the final uvs from v2f
 
                 float distort = tex2D(_DistortionTex, i.uv * _Time.yy); // moving the distiortion texture across the uv 
+                float3 finalNormal = i.objNormal;
 
                 /*START - Fresnel Effect code - outer hologram effect*/
                 float fresnelAmount = 1 - max(0,dot(i.objNormal, i.viewDir));
@@ -98,25 +114,24 @@ Shader "Custom-Shaders/HologramShader"
                 float3 invfresnelColor = invfresnelAmount * _InvFresnelColor;
                 /*END - Fresnel Effect code - inner hologram effect*/
 
-                //float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount) + distort; // lerping between the two effects and applying the distortion over the end result
+                float3 finalColor = lerp(fresnelColor, invfresnelColor, invfresnelAmount); // lerping between the two effects and applying the distortion over the end result
                 
 
                 /*START - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
-                // use absolute value of normal as texture weights
-                half3 blend = abs(i.objNormal);
-                // make sure the weights sum up to 1 (divide by sum of x+y+z)
-                blend /= dot(blend,1.0);
-                // read the three texture projections, for x,y,z axes
-                fixed4 cx = tex2D(_MainTex, i.coords.yz + uvs);
-                fixed4 cy = tex2D(_MainTex, i.coords.xz + uvs);
-                fixed4 cz = tex2D(_MainTex, i.coords.xy + uvs);
-                // blend the textures based on weights
-                fixed4 c = cx * blend.x + cy * blend.y + cz * blend.z;
-                // modulate by regular occlusion map
-                c *= tex2D(_OcclusionMap, i.uv);
+                
+                
+                half3 blend = abs(i.objNormal);                           // use absolute value of normal as texture weights              
+                blend /= dot(blend,1.0);                                  // make sure the weights sum up to 1 (divide by sum of x+y+z)             
+                fixed4 cx = tex2D(_MainTex, i.coords.yz + uvs);           // read the three texture projections, for x axes
+                fixed4 cy = tex2D(_MainTex, i.coords.xz + uvs);           // read the three texture projections, for y axes
+                fixed4 cz = tex2D(_MainTex, i.coords.xy + uvs);           // read the three texture projections, for z axes               
+                fixed4 c = cx * blend.x + cy * blend.y + cz * blend.z;    // blend the textures based on weights              
+                c *= tex2D(_OcclusionMap, i.uv);                          // modulate by regular occlusion map
+                
+                
                 /*END - TRIPLANAR from Unity docs to apply the texture over the whole 3dobject, especially if its a complex one*/
 
-                return fixed4(c + fresnelColor + invfresnelColor,1) * (distort * _DistortionIntensity); // retuns the 
+                return fixed4(c + finalColor,1); // retuns the 
             }
             ENDHLSL
         }
