@@ -122,8 +122,8 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _InvFresnelIntensity: 5
-    - _InvFresnelRamp: 5
+    - _InvFresnelIntensity: 8
+    - _InvFresnelRamp: 2
     - _Metallic: 0
     - _OcclusionStrength: 1
     - _Opp: 0
